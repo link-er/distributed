@@ -14,7 +14,7 @@ public class CalculationsProcessor {
 		
 		Scanner in = new Scanner(System.in);
 		System.out.println("***Hello***");
-		System.out.println("Enter algorithm name to use (tr or r&a):");
+		System.out.println("Enter algorithm name to use (tr or ra):");
 		String algorithm = in.nextLine();
 		ServerSide.setAlgorithm(algorithm);
 //		taking own IP address in form 192.168.1.1

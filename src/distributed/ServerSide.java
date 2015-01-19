@@ -121,6 +121,7 @@ public class ServerSide {
 	public static void setAlgorithm() {
 		algorithm.setNetLength(netLength());
 		algorithm.setRing(getNextInRing());
+		freeResource();
 	}
 	
 	public static void setAlgorithm(String algorithmName) {
@@ -219,19 +220,20 @@ public class ServerSide {
 		return result;
 	}
 	
-	public static void calculate(int value) {
+	synchronized public static void calculate(int value) {
 		setState("locked");
-		System.out.println("------Server talking: entering critical section!");
-		algorithm.incrementTimestamp();
-		System.out.println("TIC-TAC (internal operation)" + getTimestamp());
+		System.out.println(Helper.logStart(getTimestamp()) + "entering critical section!");
 		Operation current = operationsQueue.poll();
-		int result = current.implement(value);
-		DistributedServer.setNewValue(result);
-		propagateCalculation(current.getOperation(), current.getOperand());
-		System.out.println("------Server talking: on " + value + " made operation " + current.getOperation() + " with "
-				+ current.getOperand() + " and got ***" + result);
+		if(!current.equals(null)) {
+			algorithm.incrementTimestamp();
+			int result = current.implement(value);
+			DistributedServer.setNewValue(result);
+			propagateCalculation(current.getOperation(), current.getOperand());
+			System.out.println(Helper.logStart(getTimestamp()) + "on " + value + " made operation " + current.getOperation() + " with "
+					+ current.getOperand() + " and got ***" + result + "***");
+		}
 		algorithm.freeResource();
-		System.out.println("------Server talking: finished critical section");
+		System.out.println(Helper.logStart(getTimestamp()) + "finished critical section");
 		if(operationsQueue.isEmpty())
 			setState("free");
 		else
@@ -243,7 +245,7 @@ public class ServerSide {
 			ClientSide client = new ClientSide(netHost);
 			try {
 				algorithm.incrementTimestamp();
-				System.out.println("TIC-TAC (send operation)" + getTimestamp());
+				System.out.println(Helper.logStart(getTimestamp()) + "send event");
 				client.sender.execute("PDSProject.performOperation", new Object[]{operationToMake, operand, getTimestamp()});
 			} catch (XmlRpcException e) {
 				System.out.println("Failed to propagate our calculation to hosts.");
@@ -270,6 +272,11 @@ public class ServerSide {
 	
 	public static void freeResource() {
 		algorithm.freeResource();
+	}
+	
+	public static void getToken() {
+		TokenRing tr = (TokenRing) algorithm;
+		tr.getToken();
 	}
 	
 //	=========AGRAWALA========

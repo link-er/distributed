@@ -8,18 +8,24 @@ import org.apache.xmlrpc.XmlRpcException;
 public class Agrawala extends SyncAlgorithm {
 	public Agrawala() { }
 	
+	public void setState(String value) {
+		super.setState(value);
+		if(value.equals("wanted")) {
+			requestAccess();
+		}
+	}
+	
 	private List<String> queue = new ArrayList<String>();
-	private boolean accessRequested = false;
 	
 	public void freeResource() {
-		System.out.println("------Server talking: free resource, send OK to " + Arrays.toString(queue.toArray()));
-		accessRequested = false;
+		System.out.println(Helper.logStart(getTimestamp()) + "free resource, send OK to " +
+				Arrays.toString(queue.toArray()));
 		for(String node : queue) {
 			URL nodeUrl;
 			try {
 				nodeUrl = new URL(node);
 				ClientSide client = new ClientSide(nodeUrl);
-				System.out.println("------Server talking: send OK to " + node);
+				System.out.println(Helper.logStart(getTimestamp()) + "send event");
 				incrementTimestamp();
 				client.sender.execute("PDSProject.receiveOk", new Object[]{timestamp});
 			} catch (MalformedURLException e) {
@@ -34,7 +40,7 @@ public class Agrawala extends SyncAlgorithm {
 	}
 	
 	public void enque(String nodeId, int requesterTimestamp) {
-		System.out.println("------Server talking: adding " + nodeId + " to queue");
+		System.out.println(Helper.logStart(getTimestamp()) + "adding " + nodeId + " to queue");
 		queue.add(nodeId);
 	}
 	
@@ -62,13 +68,10 @@ public class Agrawala extends SyncAlgorithm {
 	}
 	
 	public boolean hasAccess() {
-		if(!accessRequested)
-			requestAccess();
 		return okFromNodes == netLength - 1;
 	}
 	
 	public void requestAccess() {
-		accessRequested = true;
 		boolean answer;
 		okFromNodes = 0;
 		for(URL netHost : ServerSide.getNetBroadcast()) {
@@ -77,7 +80,7 @@ public class Agrawala extends SyncAlgorithm {
 				incrementTimestamp();
 				answer = (Boolean) client.sender.execute("PDSProject.receiveRequest", 
 						new Object[]{ServerSide.getOwnHostAddress(), timestamp});
-				System.out.println("------Server talking: got answer on request " + answer +
+				System.out.println(Helper.logStart(getTimestamp()) + "got answer on request " + answer +
 						" from " + netHost.toString());
 				if(answer)
 					okFromNodes++;
