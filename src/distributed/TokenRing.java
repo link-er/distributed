@@ -9,6 +9,9 @@ public class TokenRing extends SyncAlgorithm {
 	public boolean hasAccess() {
 		return token;
 	}
+	public void requestAccess() {
+		ServerSide.setState("wanted");
+	}
 	public void getToken() {
 		token = true;
 	}
@@ -16,11 +19,16 @@ public class TokenRing extends SyncAlgorithm {
 	private String nextInRing = "";
 	public void setRing(String node) {
 		nextInRing = node;
+		getToken();
+		freeResource();
 	}
 	
 	public TokenRing() { }
 	
 	public void freeResource() {
+		if(!token)
+			return;
+		
 		token = false;
 		if(doneNodes.size() < netLength) {
 			ClientSide client = null;

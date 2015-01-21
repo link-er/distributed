@@ -8,19 +8,12 @@ import org.apache.xmlrpc.XmlRpcException;
 public class Agrawala extends SyncAlgorithm {
 	public Agrawala() { }
 	
-	public void setState(String value) {
-		super.setState(value);
-		if(value.equals("wanted")) {
-			requestAccess();
-		}
-	}
-	
 	private List<String> queue = new ArrayList<String>();
 	
 	public void freeResource() {
 		System.out.println(Helper.logStart(getTimestamp()) + "free resource, send OK to " +
 				Arrays.toString(queue.toArray()));
-		for(String node : queue) {
+		for(String node : queue.toArray(new String[0])) {
 			URL nodeUrl;
 			try {
 				nodeUrl = new URL(node);
@@ -39,7 +32,7 @@ public class Agrawala extends SyncAlgorithm {
 		queue.clear();
 	}
 	
-	public void enque(String nodeId, int requesterTimestamp) {
+	public void enque(String nodeId) {
 		System.out.println(Helper.logStart(getTimestamp()) + "adding " + nodeId + " to queue");
 		queue.add(nodeId);
 	}
@@ -67,19 +60,26 @@ public class Agrawala extends SyncAlgorithm {
 		okFromNodes++;
 	}
 	
+	private int wantedTimestamp = 0;
+	public int getWantedTimestamp() {
+		return wantedTimestamp;
+	}
+	
 	public boolean hasAccess() {
 		return okFromNodes == netLength - 1;
 	}
 	
 	public void requestAccess() {
+		ServerSide.setState("wanted");
 		boolean answer;
 		okFromNodes = 0;
+		wantedTimestamp = timestamp;
 		for(URL netHost : ServerSide.getNetBroadcast()) {
 			ClientSide client = new ClientSide(netHost);
 			try {
 				incrementTimestamp();
 				answer = (Boolean) client.sender.execute("PDSProject.receiveRequest", 
-						new Object[]{ServerSide.getOwnHostAddress(), timestamp});
+						new Object[]{ServerSide.getOwnHostAddress(), wantedTimestamp, timestamp});
 				System.out.println(Helper.logStart(getTimestamp()) + "got answer on request " + answer +
 						" from " + netHost.toString());
 				if(answer)

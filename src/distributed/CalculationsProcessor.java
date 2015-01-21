@@ -115,6 +115,7 @@ public class CalculationsProcessor {
 				}
 				case("start"): {
 					if(server.inNet()) {
+						ServerSide.setAlgorithm();
 						try {
 							client = new ClientSide(ServerSide.getOwnHostAddress());
 						} catch (MalformedURLException e) {
@@ -126,8 +127,8 @@ public class CalculationsProcessor {
 //						sending initial value, used algorithm and structure of the net
 						params = new Object[]{ initial };
 						try {
-							sendRequestToAll("PDSProject.calculateValue", params);
 							client.sender.execute("PDSProject.calculateValue", params);
+							sendRequestToAll("PDSProject.calculateValue", params);
 						} catch (XmlRpcException e) {
 							System.out.print("Failed to request nodes to start calculations ");
 							System.out.println(e.getMessage());

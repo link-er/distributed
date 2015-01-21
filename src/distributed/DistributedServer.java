@@ -7,6 +7,9 @@ public class DistributedServer {
 	public static void setNewValue(int newValue) {
 		value = newValue;
 	}
+	public static int getValue() {
+		return value;
+	}
 	
 //	waiting for url in form http://server:port/pds/
 	public String addNode(String joiningAddress) {
@@ -39,7 +42,7 @@ public class DistributedServer {
 			ServerSide.startTimestamp();
 			Random rand = new Random();
 			long startTime = System.currentTimeMillis();
-			while(System.currentTimeMillis() - startTime <= 20000) {
+			while(System.currentTimeMillis() - startTime <= 20 * 1000) {
 				int timeToSleep, operationToMake, operand;
 				timeToSleep = rand.nextInt(2);
 				try {
@@ -48,14 +51,13 @@ public class DistributedServer {
 				} catch (InterruptedException e) {
 					System.out.println("Cannot sleep");
 				}
-				if(ServerSide.checkState("free"))
-					ServerSide.setState("wanted");
+				ServerSide.requestAccess();
 				operationToMake = rand.nextInt(4);
 //				in order not to check if we got 0 for division
 				operand = rand.nextInt(5) + 1;
 				ServerSide.queueOperation(operationToMake, operand);
-//				this part is not actually used for tokenRing
-				if(ServerSide.hasAccess())
+//				wanted state could be finished by receiveOK or receiveToken
+				if(ServerSide.checkState("wanted") && ServerSide.hasAccess())
 					ServerSide.calculate(value);
 			}
 			ServerSide.finishQueue(value);
@@ -67,7 +69,6 @@ public class DistributedServer {
 	
 	public boolean calculateValue(int initialValue) {
 		value = initialValue;
-		ServerSide.setAlgorithm();
 		System.out.println("***START***");
 		System.out.println(Helper.logStart(0) + "starting with initial value " + value);
 		thread.start();
@@ -93,29 +94,28 @@ public class DistributedServer {
 	
 //	===========TOKEN RING
 	Thread tokenCalculation = new Thread() { 
-		public void run(){ 
-			ServerSide.calculate(value);
+		public void run(){
+			if(ServerSide.hasAccess()) {
+				if(ServerSide.checkState("wanted"))
+					ServerSide.calculate(value);
+				else {
+					if(ServerSide.checkState("free")) {
+						ServerSide.freeResource();
+					}
+				}
+			}
 		}
 	};
 	
 	public boolean receiveToken() {
 		System.out.println(Helper.logStart(0) + "got token");
 		ServerSide.getToken();
-		if(ServerSide.hasAccess()) {
-			if(ServerSide.checkState("wanted"))
-				tokenCalculation.start();
-			else {
-//				checking that we still have token (might be already sent in the thread)
-				if(ServerSide.checkState("free") && ServerSide.hasAccess()) {
-					ServerSide.freeResource();
-				}
-			}
-		}
+		tokenCalculation.start();
 		return true;
 	}
 	
 //=============ARGAWALA
-	synchronized public boolean receiveRequest(String nodeId, int requesterTimestamp) {
+	public boolean receiveRequest(String nodeId, int wantedTimestamp, int requesterTimestamp) {
 		System.out.println(Helper.logStart(ServerSide.getTimestamp()) + "receive event " + requesterTimestamp);
 		boolean result;
 		if(ServerSide.checkState("free")) {
@@ -123,11 +123,10 @@ public class DistributedServer {
 			result = true;
 		}
 		else {
-			int currentTimestamp = ServerSide.getTimestamp();
-			if((ServerSide.checkState("wanted") && (requesterTimestamp > currentTimestamp ||
-					(requesterTimestamp == currentTimestamp && nodeId.compareTo(ServerSide.getOwnHostAddress()) > 0))) ||
+			if((ServerSide.checkState("wanted") && (wantedTimestamp > ServerSide.getWantedTimestamp() ||
+					(wantedTimestamp == ServerSide.getWantedTimestamp() && nodeId.compareTo(ServerSide.getOwnHostAddress()) > 0))) ||
 					ServerSide.checkState("locked")) {
-				ServerSide.enque(nodeId, requesterTimestamp);
+				ServerSide.enque(nodeId);
 				System.out.println(Helper.logStart(ServerSide.getTimestamp()) + "state is not free, return no access to " + nodeId);
 				result = false;
 			}

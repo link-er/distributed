@@ -34,6 +34,7 @@ public class SyncAlgorithm {
 	public void updateTimestamp(int requesterTimestamp) { }
 	public int getTimestamp() { return 0; }
 	public void startTimestamp() { }
+	public void requestAccess() { }
 	
 //	only for token ring, but called in both algorithms
 	public void setRing(String node) { }

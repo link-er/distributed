@@ -121,7 +121,6 @@ public class ServerSide {
 	public static void setAlgorithm() {
 		algorithm.setNetLength(netLength());
 		algorithm.setRing(getNextInRing());
-		freeResource();
 	}
 	
 	public static void setAlgorithm(String algorithmName) {
@@ -163,6 +162,10 @@ public class ServerSide {
 	
 	public static void addDoneHost(String host) {
 		algorithm.addDoneHost(host);
+	}
+	
+	public static void requestAccess() {
+		algorithm.requestAccess();
 	}
 	
 	public static class Operation implements Comparable<Operation> {
@@ -211,20 +214,21 @@ public class ServerSide {
 	
 //	dummy method for token ring, because we will never have access - token is always false
 //	for token ring queue will be finished by receiving token method
-	public static int finishQueue(int value) {
+	public static void finishQueue(int value) {
 		int result = value;
 		while(!operationsQueue.isEmpty()) {
+			ServerSide.requestAccess();
 			if(hasAccess())
-				calculate(value);
+				calculate(result);
+			result = DistributedServer.getValue();
 		}
-		return result;
 	}
 	
-	synchronized public static void calculate(int value) {
+	public static void calculate(int value) {
 		setState("locked");
 		System.out.println(Helper.logStart(getTimestamp()) + "entering critical section!");
 		Operation current = operationsQueue.poll();
-		if(!current.equals(null)) {
+		if(current!=null) {
 			algorithm.incrementTimestamp();
 			int result = current.implement(value);
 			DistributedServer.setNewValue(result);
@@ -232,12 +236,9 @@ public class ServerSide {
 			System.out.println(Helper.logStart(getTimestamp()) + "on " + value + " made operation " + current.getOperation() + " with "
 					+ current.getOperand() + " and got ***" + result + "***");
 		}
+		setState("free");
 		algorithm.freeResource();
 		System.out.println(Helper.logStart(getTimestamp()) + "finished critical section");
-		if(operationsQueue.isEmpty())
-			setState("free");
-		else
-			setState("wanted");
 	}
 	
 	public static void propagateCalculation(int operationToMake, int operand) {
@@ -280,13 +281,18 @@ public class ServerSide {
 	}
 	
 //	=========AGRAWALA========
-	public static void enque(String nodeId, int requesterTimestamp) {
+	public static void enque(String nodeId) {
 		Agrawala agr = (Agrawala) algorithm;
-		agr.enque(nodeId, requesterTimestamp);
+		agr.enque(nodeId);
 	}
 	
 	public static void addAccessAnswer() {
 		Agrawala agr = (Agrawala) algorithm;
 		agr.addAccessAnswer();
+	}
+	
+	public static int getWantedTimestamp() {
+		Agrawala agr = (Agrawala) algorithm;
+		return agr.getWantedTimestamp();
 	}
 }
