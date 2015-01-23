@@ -1,7 +1,6 @@
 package distributed;
 
 import java.net.MalformedURLException;
-
 import org.apache.xmlrpc.XmlRpcException;
 
 public class TokenRing extends SyncAlgorithm {
@@ -19,6 +18,10 @@ public class TokenRing extends SyncAlgorithm {
 	private String nextInRing = "";
 	public void setRing(String node) {
 		nextInRing = node;
+		doneNodes.clear();
+	}
+	
+	public void initializeToken() {
 		getToken();
 		freeResource();
 	}
@@ -30,7 +33,8 @@ public class TokenRing extends SyncAlgorithm {
 			return;
 		
 		token = false;
-		if(doneNodes.size() < netLength) {
+		if((doneNodes.size() < netLength) && 
+				!(doneNodes.size()==1 && doneNodes.contains(ServerSide.getOwnHostAddress()))) {
 			ClientSide client = null;
 			try {
 				client = new ClientSide(nextInRing);
@@ -38,7 +42,7 @@ public class TokenRing extends SyncAlgorithm {
 				System.out.println("Failed to create client to next in ring");
 			}
 			try {
-				System.out.println(Helper.logStart(0) + "send token to " + nextInRing);
+				//System.out.println(Helper.logStart(0) + "send token to " + nextInRing);
 				client.sender.execute("PDSProject.receiveToken", new Object[]{});
 			} catch (XmlRpcException e) {
 				System.out.println("Failed to send token");

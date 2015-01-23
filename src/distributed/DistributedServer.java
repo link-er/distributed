@@ -1,6 +1,9 @@
 package distributed;
 
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.util.*;
+import org.apache.xmlrpc.XmlRpcException;
 
 public class DistributedServer {
 	private static int value;
@@ -42,7 +45,7 @@ public class DistributedServer {
 			ServerSide.startTimestamp();
 			Random rand = new Random();
 			long startTime = System.currentTimeMillis();
-			while(System.currentTimeMillis() - startTime <= 20 * 1000) {
+			while(System.currentTimeMillis() - startTime <= 120 * 1000) {
 				int timeToSleep, operationToMake, operand;
 				timeToSleep = rand.nextInt(2);
 				try {
@@ -58,17 +61,18 @@ public class DistributedServer {
 				ServerSide.queueOperation(operationToMake, operand);
 //				wanted state could be finished by receiveOK or receiveToken
 				if(ServerSide.checkState("wanted") && ServerSide.hasAccess())
-					ServerSide.calculate(value);
+					ServerSide.calculate();
 			}
-			ServerSide.finishQueue(value);
+			ServerSide.finishQueue();
 			System.out.println(Helper.logStart(ServerSide.getTimestamp()) + "finished, got ***" + value + "***");
-			System.out.println("***FINISH***");
 			ServerSide.setDone();
+			System.out.println("***FINISH***");
 		}
 	};
 	
 	public boolean calculateValue(int initialValue) {
 		value = initialValue;
+		ServerSide.setAlgorithm();
 		System.out.println("***START***");
 		System.out.println(Helper.logStart(0) + "starting with initial value " + value);
 		thread.start();
@@ -97,7 +101,7 @@ public class DistributedServer {
 		public void run(){
 			if(ServerSide.hasAccess()) {
 				if(ServerSide.checkState("wanted"))
-					ServerSide.calculate(value);
+					ServerSide.calculate();
 				else {
 					if(ServerSide.checkState("free")) {
 						ServerSide.freeResource();
@@ -108,13 +112,13 @@ public class DistributedServer {
 	};
 	
 	public boolean receiveToken() {
-		System.out.println(Helper.logStart(0) + "got token");
+		//System.out.println(Helper.logStart(0) + "got token");
 		ServerSide.getToken();
 		tokenCalculation.start();
 		return true;
 	}
 	
-//=============ARGAWALA
+//=============AGRAWALA
 	public boolean receiveRequest(String nodeId, int wantedTimestamp, int requesterTimestamp) {
 		System.out.println(Helper.logStart(ServerSide.getTimestamp()) + "receive event " + requesterTimestamp);
 		boolean result;
@@ -147,7 +151,62 @@ public class DistributedServer {
 		if(ServerSide.checkState("wanted")) {
 			ServerSide.addAccessAnswer();
 			if(ServerSide.hasAccess())
-				ServerSide.calculate(value);
+				ServerSide.calculate();
+		}
+		return true;
+	}
+	
+	
+//=======INTERNAL CALLS FROM OWN CLIENT
+	public boolean propagateCalculation(int operationToMake, int operand) {
+		for(URL netHost : ServerSide.getNetBroadcast()) {
+			ClientSide client = new ClientSide(netHost);
+			try {
+				ServerSide.incrementTimestamp();
+				System.out.println(Helper.logStart(ServerSide.getTimestamp()) + "send event");
+				client.sender.execute("PDSProject.performOperation", new Object[]{operationToMake, operand, ServerSide.getTimestamp()});
+			} catch (XmlRpcException e) {
+				System.out.println("Failed to propagate our calculation to hosts.");
+			}
+		}
+		return true;
+	}
+	
+	public boolean sendRequests(int wantedTimestamp) {
+		boolean answer;
+		for(URL netHost : ServerSide.getNetBroadcast()) {
+			ClientSide client = new ClientSide(netHost);
+			try {
+				ServerSide.incrementTimestamp();
+				answer = (Boolean) client.sender.execute("PDSProject.receiveRequest", 
+						new Object[]{ServerSide.getOwnHostAddress(), wantedTimestamp, ServerSide.getTimestamp()});
+				System.out.println(Helper.logStart(ServerSide.getTimestamp()) + "got answer on request " + answer +
+						" from " + netHost.toString());
+				if(answer)
+					ServerSide.addAccessAnswer();
+			} catch (XmlRpcException e) {
+				System.out.println("Failed to request access from hosts.");
+			}
+		}
+		return true;
+	}
+	
+	public boolean sendOks() {
+		for(String node : ServerSide.getQueue()) {
+			URL nodeUrl;
+			try {
+				nodeUrl = new URL(node);
+				ClientSide client = new ClientSide(nodeUrl);
+				System.out.println(Helper.logStart(ServerSide.getTimestamp()) + "send event");
+				ServerSide.incrementTimestamp();
+				client.sender.execute("PDSProject.receiveOk", new Object[]{ServerSide.getTimestamp()});
+			} catch (MalformedURLException e) {
+				System.out.println("Bad value in queue of requesters");
+				System.out.println(e.getMessage());
+			} catch (XmlRpcException e) {
+				System.out.println("Could not send OK");
+				System.out.println(e.getMessage());
+			}
 		}
 		return true;
 	}

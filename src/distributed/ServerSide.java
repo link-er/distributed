@@ -3,7 +3,6 @@ package distributed;
 import java.io.IOException;
 import java.net.*;
 import java.util.*;
-
 import org.apache.xmlrpc.XmlRpcException;
 import org.apache.xmlrpc.server.*;
 import org.apache.xmlrpc.webserver.WebServer;
@@ -140,6 +139,10 @@ public class ServerSide {
 		return algorithm.getTimestamp();
 	}
 	
+	public static void incrementTimestamp() {
+		algorithm.incrementTimestamp();
+	}
+	
 	public static void startTimestamp() {
 		algorithm.startTimestamp();
 	}
@@ -167,6 +170,15 @@ public class ServerSide {
 	public static void requestAccess() {
 		algorithm.requestAccess();
 	}
+	
+	public static void freeResource() {
+		algorithm.freeResource();
+	}
+	
+	public static void initializeToken() {
+		algorithm.initializeToken();
+	}
+
 	
 	public static class Operation implements Comparable<Operation> {
 		public int compareTo(Operation other){ 
@@ -214,44 +226,43 @@ public class ServerSide {
 	
 //	dummy method for token ring, because we will never have access - token is always false
 //	for token ring queue will be finished by receiving token method
-	public static void finishQueue(int value) {
-		int result = value;
+	public static void finishQueue() {
+		System.out.println(Helper.logStart(getTimestamp()) + "finishing queue of operations");
 		while(!operationsQueue.isEmpty()) {
 			ServerSide.requestAccess();
 			if(hasAccess())
-				calculate(result);
-			result = DistributedServer.getValue();
+				calculate();
 		}
 	}
 	
-	public static void calculate(int value) {
+	synchronized public static void calculate() {
 		setState("locked");
 		System.out.println(Helper.logStart(getTimestamp()) + "entering critical section!");
 		Operation current = operationsQueue.poll();
 		if(current!=null) {
 			algorithm.incrementTimestamp();
-			int result = current.implement(value);
+			int startValue = DistributedServer.getValue();
+			int result = current.implement(startValue);
 			DistributedServer.setNewValue(result);
-			propagateCalculation(current.getOperation(), current.getOperand());
-			System.out.println(Helper.logStart(getTimestamp()) + "on " + value + " made operation " + current.getOperation() + " with "
+			ClientSide ownClient;
+			try {
+				ownClient = new ClientSide(ownHostAddress);
+				ownClient.sender.execute("PDSProject.propagateCalculation", 
+						new Object[]{current.getOperation(), current.getOperand()});
+			} catch (MalformedURLException e1) {
+				System.out.println("Could not make internal server call");
+				System.out.println(e1.getMessage());
+			}
+			catch (XmlRpcException e) {
+				System.out.println("Could not make internal server call");
+				System.out.println(e.getMessage());
+			}
+			System.out.println(Helper.logStart(getTimestamp()) + "on " + startValue + " made operation " + current.getOperation() + " with "
 					+ current.getOperand() + " and got ***" + result + "***");
 		}
 		setState("free");
 		algorithm.freeResource();
 		System.out.println(Helper.logStart(getTimestamp()) + "finished critical section");
-	}
-	
-	public static void propagateCalculation(int operationToMake, int operand) {
-		for(URL netHost : getNetBroadcast()) {
-			ClientSide client = new ClientSide(netHost);
-			try {
-				algorithm.incrementTimestamp();
-				System.out.println(Helper.logStart(getTimestamp()) + "send event");
-				client.sender.execute("PDSProject.performOperation", new Object[]{operationToMake, operand, getTimestamp()});
-			} catch (XmlRpcException e) {
-				System.out.println("Failed to propagate our calculation to hosts.");
-			}
-		}
 	}
 	
 //	=======TOKEN RING======
@@ -270,11 +281,7 @@ public class ServerSide {
 		else
 			return sortedNet[ownIndex + 1];
 	}
-	
-	public static void freeResource() {
-		algorithm.freeResource();
-	}
-	
+		
 	public static void getToken() {
 		TokenRing tr = (TokenRing) algorithm;
 		tr.getToken();
@@ -294,5 +301,10 @@ public class ServerSide {
 	public static int getWantedTimestamp() {
 		Agrawala agr = (Agrawala) algorithm;
 		return agr.getWantedTimestamp();
+	}
+	
+	public static String[] getQueue() {
+		Agrawala agr = (Agrawala) algorithm;
+		return agr.getQueue();
 	}
 }

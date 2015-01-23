@@ -3,7 +3,6 @@ package distributed;
 import java.net.URL;
 import java.util.HashSet;
 import java.util.Set;
-
 import org.apache.xmlrpc.XmlRpcException;
 
 public class SyncAlgorithm {
@@ -38,6 +37,7 @@ public class SyncAlgorithm {
 	
 //	only for token ring, but called in both algorithms
 	public void setRing(String node) { }
+	public void initializeToken() { }
 	protected Set<String> doneNodes = new HashSet<String>();
 	public void setDone() {
 		doneNodes.add(ServerSide.getOwnHostAddress());

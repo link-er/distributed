@@ -2,32 +2,30 @@ package distributed;
 
 import java.net.*;
 import java.util.*;
-
 import org.apache.xmlrpc.XmlRpcException;
 
 public class Agrawala extends SyncAlgorithm {
 	public Agrawala() { }
 	
 	private List<String> queue = new ArrayList<String>();
+	public String[] getQueue() {
+		return queue.toArray(new String[0]);
+	}
 	
 	public void freeResource() {
 		System.out.println(Helper.logStart(getTimestamp()) + "free resource, send OK to " +
 				Arrays.toString(queue.toArray()));
-		for(String node : queue.toArray(new String[0])) {
-			URL nodeUrl;
-			try {
-				nodeUrl = new URL(node);
-				ClientSide client = new ClientSide(nodeUrl);
-				System.out.println(Helper.logStart(getTimestamp()) + "send event");
-				incrementTimestamp();
-				client.sender.execute("PDSProject.receiveOk", new Object[]{timestamp});
-			} catch (MalformedURLException e) {
-				System.out.println("Bad value in queue of requesters");
-				System.out.println(e.getMessage());
-			} catch (XmlRpcException e) {
-				System.out.println("Could not send OK");
-				System.out.println(e.getMessage());
-			}
+		ClientSide ownClient;
+		try {
+			ownClient = new ClientSide(ServerSide.getOwnHostAddress());
+			ownClient.sender.execute("PDSProject.sendOks", new Object[]{});
+		} catch (MalformedURLException e1) {
+			System.out.println("Could not make internal server call");
+			System.out.println(e1.getMessage());
+		}
+		catch (XmlRpcException e) {
+			System.out.println("Could not make internal server call");
+			System.out.println(e.getMessage());
 		}
 		queue.clear();
 	}
@@ -70,23 +68,23 @@ public class Agrawala extends SyncAlgorithm {
 	}
 	
 	public void requestAccess() {
-		ServerSide.setState("wanted");
-		boolean answer;
+		if(checkState("wanted"))
+			return;
+		
+		setState("wanted");
 		okFromNodes = 0;
 		wantedTimestamp = timestamp;
-		for(URL netHost : ServerSide.getNetBroadcast()) {
-			ClientSide client = new ClientSide(netHost);
-			try {
-				incrementTimestamp();
-				answer = (Boolean) client.sender.execute("PDSProject.receiveRequest", 
-						new Object[]{ServerSide.getOwnHostAddress(), wantedTimestamp, timestamp});
-				System.out.println(Helper.logStart(getTimestamp()) + "got answer on request " + answer +
-						" from " + netHost.toString());
-				if(answer)
-					okFromNodes++;
-			} catch (XmlRpcException e) {
-				System.out.println("Failed to request access from hosts.");
-			}
+		ClientSide ownClient;
+		try {
+			ownClient = new ClientSide(ServerSide.getOwnHostAddress());
+			ownClient.sender.execute("PDSProject.sendRequests", new Object[]{wantedTimestamp});
+		} catch (MalformedURLException e1) {
+			System.out.println("Could not make internal server call");
+			System.out.println(e1.getMessage());
+		}
+		catch (XmlRpcException e) {
+			System.out.println("Could not make internal server call");
+			System.out.println(e.getMessage());
 		}
 	}
 }

@@ -4,7 +4,6 @@ import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.*;
-
 import org.apache.xmlrpc.XmlRpcException;
 
 public class CalculationsProcessor {
@@ -115,7 +114,6 @@ public class CalculationsProcessor {
 				}
 				case("start"): {
 					if(server.inNet()) {
-						ServerSide.setAlgorithm();
 						try {
 							client = new ClientSide(ServerSide.getOwnHostAddress());
 						} catch (MalformedURLException e) {
@@ -129,6 +127,7 @@ public class CalculationsProcessor {
 						try {
 							client.sender.execute("PDSProject.calculateValue", params);
 							sendRequestToAll("PDSProject.calculateValue", params);
+							ServerSide.initializeToken();
 						} catch (XmlRpcException e) {
 							System.out.print("Failed to request nodes to start calculations ");
 							System.out.println(e.getMessage());
