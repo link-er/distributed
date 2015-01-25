@@ -7,7 +7,7 @@ import org.apache.xmlrpc.XmlRpcException;
 
 public class SyncAlgorithm {
 	protected String state = "free";
-	public void setState(String value) {
+	synchronized public void setState(String value) {
 		state = value;
 	}
 	public boolean checkState(String value) {

@@ -3,6 +3,7 @@ package distributed;
 import java.io.IOException;
 import java.net.*;
 import java.util.*;
+
 import org.apache.xmlrpc.XmlRpcException;
 import org.apache.xmlrpc.server.*;
 import org.apache.xmlrpc.webserver.WebServer;
@@ -224,11 +225,14 @@ public class ServerSide {
 		operationsQueue.add(new Operation(operation, operand));
 	}
 	
-//	dummy method for token ring, because we will never have access - token is always false
-//	for token ring queue will be finished by receiving token method
 	public static void finishQueue() {
 		System.out.println(Helper.logStart(getTimestamp()) + "finishing queue of operations");
 		while(!operationsQueue.isEmpty()) {
+			try {
+				Thread.sleep(1000);
+			} catch (InterruptedException e) {
+				System.out.println("Failed to sleep between queue operations");
+			}
 			ServerSide.requestAccess();
 			if(hasAccess())
 				calculate();

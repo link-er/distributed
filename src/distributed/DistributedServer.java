@@ -3,6 +3,7 @@ package distributed;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.*;
+
 import org.apache.xmlrpc.XmlRpcException;
 
 public class DistributedServer {
@@ -45,9 +46,9 @@ public class DistributedServer {
 			ServerSide.startTimestamp();
 			Random rand = new Random();
 			long startTime = System.currentTimeMillis();
-			while(System.currentTimeMillis() - startTime <= 120 * 1000) {
+			while(System.currentTimeMillis() - startTime <= 20 * 1000) {
 				int timeToSleep, operationToMake, operand;
-				timeToSleep = rand.nextInt(2);
+				timeToSleep = rand.nextInt(2) + 1;
 				try {
 					System.out.println(Helper.logStart(ServerSide.getTimestamp()) + "sleep for " + timeToSleep + "s.");
 					Thread.sleep(timeToSleep*1000);
@@ -104,6 +105,11 @@ public class DistributedServer {
 					ServerSide.calculate();
 				else {
 					if(ServerSide.checkState("free")) {
+						try {
+							Thread.sleep(1000);
+						} catch (InterruptedException e) {
+							System.out.println("Failed to hold token for 1s");
+						}
 						ServerSide.freeResource();
 					}
 				}
@@ -112,7 +118,7 @@ public class DistributedServer {
 	};
 	
 	public boolean receiveToken() {
-		//System.out.println(Helper.logStart(0) + "got token");
+		System.out.println(Helper.logStart(0) + "got token");
 		ServerSide.getToken();
 		tokenCalculation.start();
 		return true;
@@ -207,6 +213,22 @@ public class DistributedServer {
 				System.out.println("Could not send OK");
 				System.out.println(e.getMessage());
 			}
+		}
+		return true;
+	}
+	
+	public boolean passToken(String nextInRing) {
+		ClientSide client = null;
+		try {
+			client = new ClientSide(nextInRing);
+		} catch (MalformedURLException e1) {
+			System.out.println("Failed to create client to next in ring");
+		}
+		try {
+			System.out.println(Helper.logStart(0) + "send token to " + nextInRing);
+			client.sender.execute("PDSProject.receiveToken", new Object[]{});
+		} catch (XmlRpcException e) {
+			System.out.println("Failed to send token");
 		}
 		return true;
 	}

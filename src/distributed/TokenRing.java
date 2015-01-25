@@ -1,6 +1,7 @@
 package distributed;
 
 import java.net.MalformedURLException;
+
 import org.apache.xmlrpc.XmlRpcException;
 
 public class TokenRing extends SyncAlgorithm {
@@ -9,7 +10,9 @@ public class TokenRing extends SyncAlgorithm {
 		return token;
 	}
 	public void requestAccess() {
-		ServerSide.setState("wanted");
+		if(!checkState("wanted")) {
+			setState("wanted");
+		}
 	}
 	public void getToken() {
 		token = true;
@@ -19,33 +22,34 @@ public class TokenRing extends SyncAlgorithm {
 	public void setRing(String node) {
 		nextInRing = node;
 		doneNodes.clear();
+		token = false;
 	}
 	
 	public void initializeToken() {
 		getToken();
-		freeResource();
+		//freeResource();
 	}
 	
 	public TokenRing() { }
 	
-	public void freeResource() {
+	synchronized public void freeResource() {
 		if(!token)
 			return;
 		
-		token = false;
 		if((doneNodes.size() < netLength) && 
-				!(doneNodes.size()==1 && doneNodes.contains(ServerSide.getOwnHostAddress()))) {
-			ClientSide client = null;
+				!(doneNodes.size()==netLength-1 && !doneNodes.contains(ServerSide.getOwnHostAddress()))) {
+			token = false;
+			ClientSide ownClient;
 			try {
-				client = new ClientSide(nextInRing);
+				ownClient = new ClientSide(ServerSide.getOwnHostAddress());
+				ownClient.sender.execute("PDSProject.passToken", new Object[]{nextInRing});
 			} catch (MalformedURLException e1) {
-				System.out.println("Failed to create client to next in ring");
+				System.out.println("Could not make internal server call");
+				System.out.println(e1.getMessage());
 			}
-			try {
-				//System.out.println(Helper.logStart(0) + "send token to " + nextInRing);
-				client.sender.execute("PDSProject.receiveToken", new Object[]{});
-			} catch (XmlRpcException e) {
-				System.out.println("Failed to send token");
+			catch (XmlRpcException e) {
+				System.out.println("Could not make internal server call");
+				System.out.println(e.getMessage());
 			}
 		}
 	}
